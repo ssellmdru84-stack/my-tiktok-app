@@ -6,7 +6,7 @@
 <title>My Video App</title>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCdTvyKuVW8Y1GiQj4M62-WVuXUf-JnGkc",
@@ -21,11 +21,25 @@
   const auth = getAuth(app);
 
   window.signup = function() {
+    const name = document.getElementById('name').value;
+    const nickname = document.getElementById('nickname').value;
+    const username = document.getElementById('username').value;
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
+
+    if (!name || !nickname || !username || !email || !password) {
+      alert("সব ঘর পূরণ করুন");
+      return;
+    }
+
     createUserWithEmailAndPassword(auth, email, password)
       .then((userCredential) => {
-        alert("Account created! Welcome " + userCredential.user.email);
+        return updateProfile(userCredential.user, {
+          displayName: name + " | @" + username + " | " + nickname
+        });
+      })
+      .then(() => {
+        alert("Account created successfully!");
       })
       .catch((error) => {
         alert("Error: " + error.message);
@@ -37,7 +51,7 @@
     const password = document.getElementById('password').value;
     signInWithEmailAndPassword(auth, email, password)
       .then((userCredential) => {
-        alert("Logged in as " + userCredential.user.email);
+        alert("Logged in as " + userCredential.user.displayName);
       })
       .catch((error) => {
         alert("Error: " + error.message);
@@ -53,7 +67,7 @@
   onAuthStateChanged(auth, (user) => {
     const status = document.getElementById('status');
     if (user) {
-      status.innerText = "Logged in as: " + user.email;
+      status.innerText = "Logged in: " + (user.displayName || user.email);
     } else {
       status.innerText = "Not logged in";
     }
@@ -72,12 +86,12 @@
     flex-direction: column;
     padding: 20px;
   }
-  h1 { font-size: 28px; margin-bottom: 20px; }
+  h1 { font-size: 26px; margin-bottom: 20px; }
   input {
     width: 100%;
     max-width: 300px;
     padding: 12px;
-    margin: 8px 0;
+    margin: 6px 0;
     border-radius: 8px;
     border: none;
     font-size: 16px;
@@ -86,7 +100,7 @@
     width: 100%;
     max-width: 300px;
     padding: 12px;
-    margin: 8px 0;
+    margin: 6px 0;
     border-radius: 8px;
     border: none;
     background: #fe2c55;
@@ -94,16 +108,32 @@
     font-size: 16px;
     font-weight: bold;
   }
-  #status { margin-top: 20px; color: #aaa; }
+  #status { margin-top: 20px; color: #aaa; text-align: center; }
+  label { color: #aaa; font-size: 13px; width: 100%; max-width: 300px; margin-top: 8px; }
 </style>
 </head>
 <body>
   <h1>🎬 My Video App</h1>
+
+  <label>Full Name (শুধু সাইনআপে লাগবে)</label>
+  <input type="text" id="name" placeholder="Full Name">
+
+  <label>Nickname (শুধু সাইনআপে লাগবে)</label>
+  <input type="text" id="nickname" placeholder="Nickname">
+
+  <label>Username (শুধু সাইনআপে লাগবে)</label>
+  <input type="text" id="username" placeholder="Username">
+
+  <label>Email</label>
   <input type="email" id="email" placeholder="Email">
+
+  <label>Password</label>
   <input type="password" id="password" placeholder="Password">
+
   <button onclick="signup()">Sign Up</button>
   <button onclick="login()">Log In</button>
   <button onclick="logout()">Log Out</button>
+
   <p id="status">Not logged in</p>
 </body>
 </html>
