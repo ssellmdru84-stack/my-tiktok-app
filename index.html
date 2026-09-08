@@ -20,25 +20,29 @@
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
 
-  // ---- Screen switching ----
-  window.showWelcome = function() {
-    setScreen('welcomeScreen');
-  };
-  window.showSignupEmail = function() {
-    setScreen('signupScreen');
-  };
-  window.showLogin = function() {
-    setScreen('loginScreen');
-  };
-  window.showApp = function() {
-    setScreen('appScreen');
-  };
+  // ---- Auth screen switching ----
+  window.showWelcome = function() { setAuthScreen('welcomeScreen'); };
+  window.showSignupEmail = function() { setAuthScreen('signupScreen'); };
+  window.showLogin = function() { setAuthScreen('loginScreen'); };
 
-  function setScreen(id) {
-    ['welcomeScreen','signupScreen','loginScreen','appScreen'].forEach(s => {
+  function setAuthScreen(id) {
+    ['welcomeScreen','signupScreen','loginScreen'].forEach(s => {
       document.getElementById(s).style.display = (s === id) ? 'flex' : 'none';
     });
   }
+
+  // ---- Main app tab switching ----
+  window.showTab = function(tabName) {
+    ['tabHome','tabFriends','tabUpload','tabInbox','tabProfile'].forEach(t => {
+      document.getElementById(t).style.display = 'none';
+    });
+    document.getElementById('tab' + tabName).style.display = 'flex';
+
+    document.querySelectorAll('.navItem').forEach(el => el.classList.remove('navActive'));
+    document.getElementById('nav' + tabName).classList.add('navActive');
+
+    if (tabName === 'Home') renderFeed();
+  };
 
   // ---- Signup ----
   window.signup = function() {
@@ -49,11 +53,11 @@
     const password = document.getElementById('suPassword').value;
 
     if (!name || !nickname || !username || !email || !password) {
-      showMsg('signupMsg', "সব ঘর পূরণ করুন");
+      showMsg('signupMsg', "рж╕ржм ржШрж░ ржкрзВрж░ржг ржХрж░рзБржи");
       return;
     }
     if (password.length < 6) {
-      showMsg('signupMsg', "পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে");
+      showMsg('signupMsg', "ржкрж╛рж╕ржУржпрж╝рж╛рж░рзНржб ржХржоржкржХрзНрж╖рзЗ рзм ржЕржХрзНрж╖рж░рзЗрж░ рж╣рждрзЗ рж╣ржмрзЗ");
       return;
     }
 
@@ -64,17 +68,17 @@
         });
       })
       .then(() => {
-        showMsg('signupMsg', "অ্যাকাউন্ট তৈরি হয়েছে! লগইন করা হচ্ছে...", true);
+        showMsg('signupMsg', "ржЕрзНржпрж╛ржХрж╛ржЙржирзНржЯ рждрзИрж░рж┐ рж╣ржпрж╝рзЗржЫрзЗ! рж▓ржЧржЗржи ржХрж░рж╛ рж╣ржЪрзНржЫрзЗ...", true);
       })
       .catch((error) => {
         if (error.code === 'auth/email-already-in-use') {
-          showMsg('signupMsg', "এই ইমেইল দিয়ে আগেই অ্যাকাউন্ট আছে। Log in করুন।");
+          showMsg('signupMsg', "ржПржЗ ржЗржорзЗржЗрж▓ ржжрж┐ржпрж╝рзЗ ржЖржЧрзЗржЗ ржЕрзНржпрж╛ржХрж╛ржЙржирзНржЯ ржЖржЫрзЗред Log in ржХрж░рзБржиред");
         } else if (error.code === 'auth/invalid-email') {
-          showMsg('signupMsg', "ইমেইলটি সঠিক ফরম্যাটে লিখুন");
+          showMsg('signupMsg', "ржЗржорзЗржЗрж▓ржЯрж┐ рж╕ржарж┐ржХ ржлрж░ржорзНржпрж╛ржЯрзЗ рж▓рж┐ржЦрзБржи");
         } else if (error.code === 'auth/weak-password') {
-          showMsg('signupMsg', "পাসওয়ার্ড দুর্বল, আরেকটু শক্তিশালী দিন");
+          showMsg('signupMsg', "ржкрж╛рж╕ржУржпрж╝рж╛рж░рзНржб ржжрзБрж░рзНржмрж▓, ржЖрж░рзЗржХржЯрзБ рж╢ржХрзНрждрж┐рж╢рж╛рж▓рзА ржжрж┐ржи");
         } else {
-          showMsg('signupMsg', "সমস্যা হয়েছে: " + error.message);
+          showMsg('signupMsg', "рж╕ржорж╕рзНржпрж╛ рж╣ржпрж╝рзЗржЫрзЗ: " + error.message);
         }
       });
   };
@@ -85,20 +89,20 @@
     const password = document.getElementById('liPassword').value;
 
     if (!email || !password) {
-      showMsg('loginMsg', "ইমেইল ও পাসওয়ার্ড দিন");
+      showMsg('loginMsg', "ржЗржорзЗржЗрж▓ ржУ ржкрж╛рж╕ржУржпрж╝рж╛рж░рзНржб ржжрж┐ржи");
       return;
     }
 
     signInWithEmailAndPassword(auth, email, password)
       .catch((error) => {
         if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
-          showMsg('loginMsg', "ইমেইল বা পাসওয়ার্ড ভুল হয়েছে");
+          showMsg('loginMsg', "ржЗржорзЗржЗрж▓ ржмрж╛ ржкрж╛рж╕ржУржпрж╝рж╛рж░рзНржб ржнрзБрж▓ рж╣ржпрж╝рзЗржЫрзЗ");
         } else if (error.code === 'auth/user-not-found') {
-          showMsg('loginMsg', "এই ইমেইলে কোনো অ্যাকাউন্ট নেই, আগে Sign up করুন");
+          showMsg('loginMsg', "ржПржЗ ржЗржорзЗржЗрж▓рзЗ ржХрзЛржирзЛ ржЕрзНржпрж╛ржХрж╛ржЙржирзНржЯ ржирзЗржЗ, ржЖржЧрзЗ Sign up ржХрж░рзБржи");
         } else if (error.code === 'auth/too-many-requests') {
-          showMsg('loginMsg', "অনেকবার ভুল চেষ্টা হয়েছে, কিছুক্ষণ পর আবার চেষ্টা করুন");
+          showMsg('loginMsg', "ржЕржирзЗржХржмрж╛рж░ ржнрзБрж▓ ржЪрзЗрж╖рзНржЯрж╛ рж╣ржпрж╝рзЗржЫрзЗ, ржХрж┐ржЫрзБржХрзНрж╖ржг ржкрж░ ржЖржмрж╛рж░ ржЪрзЗрж╖рзНржЯрж╛ ржХрж░рзБржи");
         } else {
-          showMsg('loginMsg', "সমস্যা হয়েছে: " + error.message);
+          showMsg('loginMsg', "рж╕ржорж╕рзНржпрж╛ рж╣ржпрж╝рзЗржЫрзЗ: " + error.message);
         }
       });
   };
@@ -115,20 +119,120 @@
 
   onAuthStateChanged(auth, (user) => {
     if (user) {
-      document.getElementById('userLabel').innerText = user.displayName || user.email;
-      window.showApp();
+      const label = user.displayName || user.email;
+      document.getElementById('profileName').innerText = label;
+      document.getElementById('profileEmail').innerText = user.email;
+
+      document.getElementById('authWrapper').style.display = 'none';
+      document.getElementById('appWrapper').style.display = 'flex';
+      window.showTab('Home');
     } else {
+      document.getElementById('authWrapper').style.display = 'flex';
+      document.getElementById('appWrapper').style.display = 'none';
       window.showWelcome();
     }
   });
+
+  // ===================== VIDEO FEED (Upload + Home) =====================
+  // Videos are stored in the browser (localStorage) тАФ visible only on this device/browser for now.
+  const FEED_KEY = 'myVideoApp_feed';
+
+  function getFeed() {
+    try {
+      return JSON.parse(localStorage.getItem(FEED_KEY)) || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveFeed(feed) {
+    localStorage.setItem(FEED_KEY, JSON.stringify(feed));
+  }
+
+  function extractTikTokId(url) {
+    const match = url.match(/video\/(\d+)/);
+    return match ? match[1] : null;
+  }
+
+  window.addVideo = function() {
+    const url = document.getElementById('uploadLinkInput').value.trim();
+    const msgEl = document.getElementById('uploadMsg');
+
+    if (!url) {
+      msgEl.innerText = "ржПржХржЯрж╛ TikTok рж▓рж┐ржВржХ ржкрзЗрж╕рзНржЯ ржХрж░рзБржи";
+      msgEl.style.color = '#fe2c55';
+      return;
+    }
+    const videoId = extractTikTokId(url);
+    if (!videoId) {
+      msgEl.innerText = "рж╕ржарж┐ржХ TikTok рж▓рж┐ржВржХ ржжрж┐ржи (video/рж╕ржВржЦрзНржпрж╛ ржлрж░ржорзНржпрж╛ржЯрзЗ)";
+      msgEl.style.color = '#fe2c55';
+      return;
+    }
+
+    const feed = getFeed();
+    feed.unshift({ id: Date.now(), url: url, videoId: videoId, likes: 0, liked: false });
+    saveFeed(feed);
+
+    document.getElementById('uploadLinkInput').value = '';
+    msgEl.innerText = "ржнрж┐ржбрж┐ржУ ржпрзЛржЧ рж╣ржпрж╝рзЗржЫрзЗ! Home ржЯрзНржпрж╛ржмрзЗ ржЧрж┐ржпрж╝рзЗ ржжрзЗржЦрзБржиред";
+    msgEl.style.color = '#25d366';
+  };
+
+  function renderFeed() {
+    const feed = getFeed();
+    const container = document.getElementById('feedContainer');
+    const emptyState = document.getElementById('feedEmpty');
+
+    if (feed.length === 0) {
+      container.innerHTML = '';
+      emptyState.style.display = 'flex';
+      return;
+    }
+    emptyState.style.display = 'none';
+
+    container.innerHTML = feed.map(v => `
+      <div class="video-card">
+        <div class="video-embed-wrap">
+          <blockquote class="tiktok-embed" cite="${v.url}" data-video-id="${v.videoId}" style="max-width: 340px; min-width: 300px;">
+            <section></section>
+          </blockquote>
+        </div>
+        <div class="like-bar">
+          <button class="like-btn ${v.liked ? 'liked' : ''}" onclick="toggleLike(${v.id})">${v.liked ? 'тЭдя╕П' : 'ЁЯдН'}</button>
+          <span class="like-count">${v.likes}</span>
+        </div>
+      </div>
+    `).join('');
+
+    // Load / reload TikTok embed script so new blockquotes render
+    const existing = document.getElementById('tiktokEmbedScript');
+    if (existing) existing.remove();
+    const script = document.createElement('script');
+    script.id = 'tiktokEmbedScript';
+    script.src = 'https://www.tiktok.com/embed.js';
+    document.body.appendChild(script);
+  }
+
+  window.toggleLike = function(id) {
+    const feed = getFeed();
+    const video = feed.find(v => v.id === id);
+    if (!video) return;
+    video.liked = !video.liked;
+    video.likes += video.liked ? 1 : -1;
+    saveFeed(feed);
+    renderFeed();
+  };
+
+  window.renderFeed = renderFeed;
 </script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, Roboto, Arial, sans-serif; }
-  body {
-    background: #fff;
-    color: #161823;
-    min-height: 100vh;
-  }
+  html, body { height: 100%; }
+  body { background: #fff; color: #161823; }
+
+  /* ---------- AUTH SCREENS ---------- */
+  #authWrapper { min-height: 100vh; }
   .screen {
     display: none;
     flex-direction: column;
@@ -136,6 +240,7 @@
     padding: 24px;
     max-width: 420px;
     margin: 0 auto;
+    width: 100%;
   }
   .topbar { display: flex; justify-content: flex-end; }
   .topbar span { font-size: 22px; color: #161823; cursor: pointer; }
@@ -200,88 +305,242 @@
   }
   .bottom-link a { color: #fe2c55; font-weight: 600; text-decoration: none; }
   .msg { min-height: 18px; font-size: 13px; margin-top: 6px; }
-  .back { font-size: 22px; cursor: pointer; margin-bottom: 10px; }
 
-  /* App/home screen */
-  #appScreen { background:#000; color:#fff; align-items:center; justify-content:center; text-align:center; }
-  #appScreen h2 { font-size: 22px; margin-bottom: 10px; }
-  #appScreen p { color:#aaa; margin-bottom: 24px; }
-  #appScreen button { background:#fe2c55; color:#fff; border:none; border-radius:26px; padding:12px 28px; font-size:15px; font-weight:600; }
+  /* ---------- MAIN APP ---------- */
+  #appWrapper {
+    display: none;
+    flex-direction: column;
+    height: 100vh;
+    max-width: 480px;
+    margin: 0 auto;
+    background: #000;
+    color: #fff;
+    position: relative;
+  }
+  .tabContent {
+    display: none;
+    flex: 1;
+    overflow-y: auto;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px;
+  }
+  .comingSoon { color: #999; font-size: 15px; margin: auto; text-align:center; }
+  .comingSoon .big { font-size: 40px; display:block; margin-bottom: 14px; }
+
+  /* Home / video feed */
+  #tabHome { padding: 16px 0; justify-content: flex-start; gap: 24px; }
+  .video-card {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .video-embed-wrap {
+    width: 100%;
+    max-width: 340px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .like-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .like-btn {
+    background: none;
+    border: none;
+    font-size: 30px;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+    line-height: 1;
+  }
+  .like-btn.liked { transform: scale(1.15); }
+  .like-count { font-size: 15px; color: #fff; font-weight: 600; }
+
+  /* Upload tab */
+  #tabUpload { justify-content: flex-start; padding-top: 40px; }
+  #tabUpload h2 { font-size: 20px; margin-bottom: 20px; }
+  #tabUpload input {
+    background: #1a1a1a; color: #fff; border: 1px solid #333;
+  }
+  #tabUpload .btn-primary { max-width: 340px; }
+  #uploadMsg { min-height: 18px; font-size: 13px; margin-top: 6px; }
+  .upload-hint { color: #888; font-size: 12px; margin-top: 16px; max-width: 320px; line-height: 1.5; }
+
+  /* Friends / Inbox tabs */
+  .list-search {
+    width: 100%; max-width: 380px;
+    background: #1a1a1a; color: #fff; border: 1px solid #333;
+    border-radius: 20px; padding: 10px 16px; margin-bottom: 20px;
+  }
+
+  /* Profile tab */
+  #tabProfile { color: #fff; justify-content: center; }
+  .avatar-circle {
+    width: 84px; height: 84px; border-radius: 50%;
+    background: #fe2c55; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px; font-weight: 700;
+    margin-bottom: 16px;
+  }
+  #profileName { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  #profileEmail { font-size: 13px; color: #999; margin-bottom: 24px; }
+  .btn-logout {
+    background: #fe2c55; color: #fff; border: none;
+    border-radius: 26px; padding: 12px 32px;
+    font-size: 15px; font-weight: 600;
+  }
+
+  /* Bottom nav bar */
+  .navbar {
+    display: flex;
+    border-top: 1px solid #222;
+    background: #000;
+    padding: 8px 0 max(8px, env(safe-area-inset-bottom));
+  }
+  .navItem {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    background: none;
+    border: none;
+    color: #a3a3a3;
+    font-size: 10px;
+    padding: 4px 0;
+  }
+  .navItem .icon { font-size: 22px; line-height: 1; }
+  .navItem.navActive { color: #fff; }
+  .navUpload .icon {
+    background: linear-gradient(135deg, #25f4ee, #fe2c55);
+    width: 38px; height: 26px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 18px; font-weight: 700;
+  }
 </style>
 </head>
 <body>
 
-  <!-- Welcome screen -->
+<!-- ================= AUTH ================= -->
+<div id="authWrapper">
+
   <div id="welcomeScreen" class="screen" style="display:flex;">
     <div style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
-      <div style="font-size:42px;">🎬</div>
+      <div style="font-size:42px;">ЁЯОм</div>
       <h1 class="title" style="margin-top:16px;">My Video App</h1>
       <button class="btn-primary" style="max-width:280px;" onclick="showSignupEmail()">Sign up</button>
       <button class="btn-outline" style="max-width:280px;" onclick="showLogin()">Log in</button>
     </div>
   </div>
 
-  <!-- Sign up screen -->
   <div id="signupScreen" class="screen">
-    <div class="topbar">
-      <span onclick="showWelcome()">&times;</span>
-    </div>
+    <div class="topbar"><span onclick="showWelcome()">&times;</span></div>
     <h1 class="title">Sign up</h1>
-
     <label>Full Name</label>
     <input type="text" id="name" placeholder="Full Name">
-
     <label>Nickname</label>
     <input type="text" id="nickname" placeholder="Nickname">
-
     <label>Username</label>
     <input type="text" id="username" placeholder="Username">
-
     <label>Email</label>
     <input type="email" id="suEmail" placeholder="Email">
-
     <label>Password</label>
-    <input type="password" id="suPassword" placeholder="Password (কমপক্ষে ৬ অক্ষর)">
-
+    <input type="password" id="suPassword" placeholder="Password (ржХржоржкржХрзНрж╖рзЗ рзм ржЕржХрзНрж╖рж░)">
     <p id="signupMsg" class="msg"></p>
-
     <button class="btn-primary" onclick="signup()">Sign up</button>
-
     <div class="divider">or</div>
-    <button class="btn-outline" disabled style="opacity:0.5;">🔍 Continue with Google (শীঘ্রই আসছে)</button>
-
+    <button class="btn-outline" disabled style="opacity:0.5;">ЁЯФН Continue with Google (рж╢рзАржШрзНрж░ржЗ ржЖрж╕ржЫрзЗ)</button>
     <p class="bottom-link">Already have an account? <a href="#" onclick="showLogin()">Log in</a></p>
   </div>
 
-  <!-- Login screen -->
   <div id="loginScreen" class="screen">
-    <div class="topbar">
-      <span onclick="showWelcome()">&times;</span>
-    </div>
+    <div class="topbar"><span onclick="showWelcome()">&times;</span></div>
     <h1 class="title">Log in</h1>
-
     <label>Email</label>
     <input type="email" id="liEmail" placeholder="Email">
-
     <label>Password</label>
     <input type="password" id="liPassword" placeholder="Password">
-
     <p id="loginMsg" class="msg"></p>
-
     <button class="btn-primary" onclick="login()">Log in</button>
-
     <div class="divider">or</div>
-    <button class="btn-outline" disabled style="opacity:0.5;">🔍 Continue with Google (শীঘ্রই আসছে)</button>
-
+    <button class="btn-outline" disabled style="opacity:0.5;">ЁЯФН Continue with Google (рж╢рзАржШрзНрж░ржЗ ржЖрж╕ржЫрзЗ)</button>
     <p class="bottom-link">Don't have an account? <a href="#" onclick="showSignupEmail()">Sign up</a></p>
   </div>
 
-  <!-- Logged-in app screen -->
-  <div id="appScreen" class="screen">
-    <h2>স্বাগতম, <span id="userLabel"></span> 👋</h2>
-    <p>আপনি সফলভাবে লগইন করেছেন।</p>
-    <button onclick="logout()">Log out</button>
+</div>
+
+<!-- ================= MAIN APP ================= -->
+<div id="appWrapper">
+
+  <!-- HOME TAB -->
+  <div id="tabHome" class="tabContent">
+    <div id="feedEmpty" class="comingSoon" style="display:flex; flex-direction:column;">
+      <span class="big">ЁЯОе</span>ржПржЦржирзЛ ржХрзЛржирзЛ ржнрж┐ржбрж┐ржУ ржирзЗржЗ<br>+ ржмрж╛ржЯржирзЗ ржЧрж┐ржпрж╝рзЗ ржПржХржЯрж╛ ржнрж┐ржбрж┐ржУ ржпрзЛржЧ ржХрж░рзБржи
+    </div>
+    <div id="feedContainer" style="width:100%; display:flex; flex-direction:column; gap:24px; align-items:center;"></div>
   </div>
+
+  <!-- FRIENDS TAB -->
+  <div id="tabFriends" class="tabContent" style="display:none;">
+    <input class="list-search" placeholder="ржмржирзНржзрзБ ржЦрзБржБржЬрзБржи">
+    <div class="comingSoon">
+      <span class="big">ЁЯСе</span>ржПржЦржирзЛ ржХрзЛржирзЛ ржмржирзНржзрзБ ржирзЗржЗ<br>
+      <span style="font-size:12px;">(ржмржирзНржзрзБ ржЦрзЛржБржЬрж╛ ржУ ржпрзЛржЧ ржХрж░рж╛рж░ рж╕рж┐рж╕рзНржЯрзЗржо ржкрж░ржмрж░рзНрждрзА ржзрж╛ржкрзЗ ржЖрж╕ржмрзЗ)</span>
+    </div>
+  </div>
+
+  <!-- UPLOAD TAB -->
+  <div id="tabUpload" class="tabContent" style="display:none;">
+    <h2>ржирждрзБржи ржнрж┐ржбрж┐ржУ ржпрзЛржЧ ржХрж░рзБржи</h2>
+    <label style="color:#aaa;">TikTok ржнрж┐ржбрж┐ржУ рж▓рж┐ржВржХ</label>
+    <input type="text" id="uploadLinkInput" placeholder="https://www.tiktok.com/@username/video/...">
+    <p id="uploadMsg" class="msg"></p>
+    <button class="btn-primary" onclick="addVideo()">Add to Feed</button>
+    <p class="upload-hint">ржЖржкржирж╛рж░ TikTok ржЕрзНржпрж╛ржк ржерзЗржХрзЗ ржнрж┐ржбрж┐ржУрж░ Share тЖТ Copy link ржХрж░рзЗ ржПржЦрж╛ржирзЗ ржкрзЗрж╕рзНржЯ ржХрж░рзБржиред ржпрзЛржЧ рж╣рж▓рзЗ рж╕рзЗржЯрж╛ Home ржлрж┐ржбрзЗ ржжрзЗржЦрж╛ ржпрж╛ржмрзЗред</p>
+  </div>
+
+  <!-- INBOX TAB -->
+  <div id="tabInbox" class="tabContent" style="display:none;">
+    <div class="comingSoon">
+      <span class="big">ЁЯТм</span>ржХрзЛржирзЛ ржорзЗрж╕рзЗржЬ ржирзЗржЗ<br>
+      <span style="font-size:12px;">(ржЪрзНржпрж╛ржЯ рж╕рж┐рж╕рзНржЯрзЗржо ржкрж░ржмрж░рзНрждрзА ржзрж╛ржкрзЗ ржЖрж╕ржмрзЗ)</span>
+    </div>
+  </div>
+
+  <!-- PROFILE TAB -->
+  <div id="tabProfile" class="tabContent" style="display:none;">
+    <div class="avatar-circle" id="avatarCircle">ЁЯСд</div>
+    <div id="profileName"></div>
+    <div id="profileEmail"></div>
+    <button class="btn-logout" onclick="logout()">Log out</button>
+  </div>
+
+  <!-- BOTTOM NAV BAR -->
+  <div class="navbar">
+    <button class="navItem" id="navHome" onclick="showTab('Home')">
+      <span class="icon">ЁЯПа</span>Home
+    </button>
+    <button class="navItem" id="navFriends" onclick="showTab('Friends')">
+      <span class="icon">ЁЯСе</span>Friends
+    </button>
+    <button class="navItem navUpload" id="navUpload" onclick="showTab('Upload')">
+      <span class="icon">+</span>
+    </button>
+    <button class="navItem" id="navInbox" onclick="showTab('Inbox')">
+      <span class="icon">ЁЯТм</span>Inbox
+    </button>
+    <button class="navItem" id="navProfile" onclick="showTab('Profile')">
+      <span class="icon">ЁЯСд</span>Profile
+    </button>
+  </div>
+
+</div>
 
 </body>
 </html>
