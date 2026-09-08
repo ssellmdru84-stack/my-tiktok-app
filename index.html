@@ -7,6 +7,11 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  import {
+    getFirestore, collection, addDoc, doc, updateDoc,
+    onSnapshot, query, orderBy, arrayUnion, arrayRemove,
+    serverTimestamp, increment
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCdTvyKuVW8Y1GiQj4M62-WVuXUf-JnGkc",
@@ -19,6 +24,7 @@
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
+  const db = getFirestore(app);
 
   // ---- Auth screen switching ----
   window.showWelcome = function() { setAuthScreen('welcomeScreen'); };
@@ -195,42 +201,51 @@
     if (user) {
       currentUser = user;
       renderProfile();
+      startFeedListener();
 
       document.getElementById('authWrapper').style.display = 'none';
       document.getElementById('appWrapper').style.display = 'flex';
       window.showTab('Home');
     } else {
       currentUser = null;
+      stopFeedListener();
       document.getElementById('authWrapper').style.display = 'flex';
       document.getElementById('appWrapper').style.display = 'none';
       window.showWelcome();
     }
   });
 
-  // ===================== VIDEO FEED (Upload + Home) =====================
-  // Videos are stored in the browser (localStorage) — visible only on this device/browser for now.
-  const FEED_KEY = 'myVideoApp_feed';
-
-  function getFeed() {
-    try {
-      return JSON.parse(localStorage.getItem(FEED_KEY)) || [];
-    } catch (e) {
-      return [];
-    }
-  }
-
-  function saveFeed(feed) {
-    localStorage.setItem(FEED_KEY, JSON.stringify(feed));
-  }
+  // ===================== VIDEO FEED (Upload + Home) — Firestore, real-time =====================
+  let currentFeed = [];
+  let feedUnsubscribe = null;
 
   function extractTikTokId(url) {
     const match = url.match(/video\/(\d+)/);
     return match ? match[1] : null;
   }
 
+  function startFeedListener() {
+    if (feedUnsubscribe) return; // already listening
+    const q = query(collection(db, 'videos'), orderBy('createdAt', 'desc'));
+    feedUnsubscribe = onSnapshot(q, (snapshot) => {
+      currentFeed = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderFeed();
+    });
+  }
+
+  function stopFeedListener() {
+    if (feedUnsubscribe) {
+      feedUnsubscribe();
+      feedUnsubscribe = null;
+    }
+    currentFeed = [];
+  }
+
   window.addVideo = function() {
     const url = document.getElementById('uploadLinkInput').value.trim();
     const msgEl = document.getElementById('uploadMsg');
+
+    if (!currentUser) return;
 
     if (!url) {
       msgEl.innerText = "Please paste a TikTok link";
@@ -244,28 +259,42 @@
       return;
     }
 
-    const feed = getFeed();
-    feed.unshift({ id: Date.now(), url: url, videoId: videoId, likes: 0, liked: false });
-    saveFeed(feed);
+    const info = parseDisplayName(currentUser.displayName);
 
-    document.getElementById('uploadLinkInput').value = '';
-    msgEl.innerText = "Video added! Check the Home tab to see it.";
-    msgEl.style.color = '#25d366';
+    addDoc(collection(db, 'videos'), {
+      url: url,
+      videoId: videoId,
+      likes: 0,
+      likedBy: [],
+      authorUid: currentUser.uid,
+      authorName: info.name || currentUser.email,
+      createdAt: serverTimestamp()
+    }).then(() => {
+      document.getElementById('uploadLinkInput').value = '';
+      msgEl.innerText = "Video added! Check the Home tab to see it.";
+      msgEl.style.color = '#25d366';
+    }).catch((error) => {
+      msgEl.innerText = "Error: " + error.message;
+      msgEl.style.color = '#fe2c55';
+    });
   };
 
   function renderFeed() {
-    const feed = getFeed();
     const container = document.getElementById('feedContainer');
     const emptyState = document.getElementById('feedEmpty');
 
-    if (feed.length === 0) {
+    if (currentFeed.length === 0) {
       container.innerHTML = '';
       emptyState.style.display = 'flex';
       return;
     }
     emptyState.style.display = 'none';
 
-    container.innerHTML = feed.map(v => `
+    const myUid = currentUser ? currentUser.uid : null;
+
+    container.innerHTML = currentFeed.map(v => {
+      const liked = !!(myUid && Array.isArray(v.likedBy) && v.likedBy.includes(myUid));
+      return `
       <div class="video-card">
         <div class="video-embed-wrap">
           <blockquote class="tiktok-embed" cite="${v.url}" data-video-id="${v.videoId}" style="max-width: 340px; min-width: 300px;">
@@ -273,11 +302,12 @@
           </blockquote>
         </div>
         <div class="like-bar">
-          <button class="like-btn ${v.liked ? 'liked' : ''}" onclick="toggleLike(${v.id})">${v.liked ? '❤️' : '🤍'}</button>
-          <span class="like-count">${v.likes}</span>
+          <button class="like-btn ${liked ? 'liked' : ''}" onclick="toggleLike('${v.id}')">${liked ? '❤️' : '🤍'}</button>
+          <span class="like-count">${v.likes || 0}</span>
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
 
     // Load / reload TikTok embed script so new blockquotes render
     const existing = document.getElementById('tiktokEmbedScript');
@@ -289,13 +319,18 @@
   }
 
   window.toggleLike = function(id) {
-    const feed = getFeed();
-    const video = feed.find(v => v.id === id);
+    if (!currentUser) return;
+    const video = currentFeed.find(v => v.id === id);
     if (!video) return;
-    video.liked = !video.liked;
-    video.likes += video.liked ? 1 : -1;
-    saveFeed(feed);
-    renderFeed();
+    const myUid = currentUser.uid;
+    const liked = Array.isArray(video.likedBy) && video.likedBy.includes(myUid);
+    const videoRef = doc(db, 'videos', id);
+
+    updateDoc(videoRef, {
+      likes: increment(liked ? -1 : 1),
+      likedBy: liked ? arrayRemove(myUid) : arrayUnion(myUid)
+    });
+    // No manual re-render needed — onSnapshot picks up the change automatically.
   };
 
   window.renderFeed = renderFeed;
