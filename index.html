@@ -8,8 +8,8 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
   import {
-    getFirestore, collection, addDoc, doc, updateDoc,
-    onSnapshot, query, orderBy, arrayUnion, arrayRemove,
+    getFirestore, collection, addDoc, doc, updateDoc, setDoc, deleteDoc, getDocs,
+    onSnapshot, query, orderBy, where, arrayUnion, arrayRemove,
     serverTimestamp, increment
   } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -189,6 +189,7 @@
       .then(() => {
         localStorage.setItem(getBioKey(currentUser.uid), bio);
         renderProfile();
+        syncUserDoc();
         closeEditProfile();
       })
       .catch((error) => {
@@ -197,11 +198,173 @@
       });
   };
 
+  // ===================== USER DIRECTORY (for search / follow) =====================
+  function syncUserDoc() {
+    if (!currentUser) return;
+    const info = parseDisplayName(currentUser.displayName);
+    const username = info.username || '';
+    setDoc(doc(db, 'users', currentUser.uid), {
+      uid: currentUser.uid,
+      name: info.name || currentUser.email,
+      username: username,
+      usernameLower: username.toLowerCase(),
+      email: currentUser.email,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  }
+
+  // ===================== FOLLOW SYSTEM =====================
+  let myFollowingSet = new Set();
+  let followingUnsub = null;
+  let followersUnsub = null;
+  let lastFriendResults = [];
+
+  function startFollowListeners() {
+    if (!currentUser) return;
+
+    const followingQ = query(collection(db, 'follows'), where('followerUid', '==', currentUser.uid));
+    followingUnsub = onSnapshot(followingQ, (snap) => {
+      myFollowingSet = new Set(snap.docs.map(d => d.data().followingUid));
+      const el = document.getElementById('statFollowing');
+      if (el) el.innerText = snap.size;
+      renderFriendResults(lastFriendResults);
+    });
+
+    const followersQ = query(collection(db, 'follows'), where('followingUid', '==', currentUser.uid));
+    followersUnsub = onSnapshot(followersQ, (snap) => {
+      const el = document.getElementById('statFollowers');
+      if (el) el.innerText = snap.size;
+    });
+  }
+
+  function stopFollowListeners() {
+    if (followingUnsub) { followingUnsub(); followingUnsub = null; }
+    if (followersUnsub) { followersUnsub(); followersUnsub = null; }
+    myFollowingSet = new Set();
+  }
+
+  window.toggleFollow = function(targetUid, targetName) {
+    if (!currentUser || currentUser.uid === targetUid) return;
+    const followId = currentUser.uid + '_' + targetUid;
+    const followRef = doc(db, 'follows', followId);
+    const isFollowing = myFollowingSet.has(targetUid);
+
+    if (isFollowing) {
+      deleteDoc(followRef);
+    } else {
+      setDoc(followRef, {
+        followerUid: currentUser.uid,
+        followingUid: targetUid,
+        createdAt: serverTimestamp()
+      });
+      const info = parseDisplayName(currentUser.displayName);
+      addDoc(collection(db, 'notifications', targetUid, 'items'), {
+        type: 'follow',
+        fromUid: currentUser.uid,
+        fromName: info.name || currentUser.email,
+        read: false,
+        createdAt: serverTimestamp()
+      });
+    }
+  };
+
+  // ===================== FRIENDS TAB (search users) =====================
+  window.searchFriends = function(term) {
+    const t = term.trim().toLowerCase();
+    const emptyState = document.getElementById('friendsEmpty');
+    if (!t) {
+      lastFriendResults = [];
+      document.getElementById('friendsResults').innerHTML = '';
+      emptyState.style.display = 'flex';
+      emptyState.innerHTML = '<span class="big">👥</span>Search for people by username';
+      return;
+    }
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef, orderBy('usernameLower'), where('usernameLower', '>=', t), where('usernameLower', '<=', t + '\uf8ff'));
+    getDocs(q).then((snap) => {
+      lastFriendResults = snap.docs.map(d => d.data());
+      renderFriendResults(lastFriendResults);
+    });
+  };
+
+  function renderFriendResults(list) {
+    const container = document.getElementById('friendsResults');
+    const emptyState = document.getElementById('friendsEmpty');
+    if (!container) return;
+    const filtered = list.filter(u => !currentUser || u.uid !== currentUser.uid);
+
+    if (filtered.length === 0) {
+      container.innerHTML = '';
+      if (lastFriendResults.length > 0) {
+        emptyState.style.display = 'flex';
+        emptyState.innerHTML = '<span class="big">👥</span>No matching users found';
+      }
+      return;
+    }
+    emptyState.style.display = 'none';
+
+    container.innerHTML = filtered.map(u => {
+      const following = myFollowingSet.has(u.uid);
+      const initial = (u.name && u.name[0] || '?').toUpperCase();
+      return `
+        <div class="friend-row">
+          <div class="friend-info">
+            <div class="friend-avatar">${initial}</div>
+            <div>
+              <div class="friend-name">${u.name}</div>
+              <div class="friend-username">@${u.username}</div>
+            </div>
+          </div>
+          <button class="btn-follow ${following ? 'following' : ''}" onclick="toggleFollow('${u.uid}')">${following ? 'Following' : 'Follow'}</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ===================== INBOX (notifications) =====================
+  let notifUnsub = null;
+
+  function startNotifListener() {
+    if (!currentUser) return;
+    const q = query(collection(db, 'notifications', currentUser.uid, 'items'), orderBy('createdAt', 'desc'));
+    notifUnsub = onSnapshot(q, (snap) => {
+      renderNotifications(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+  }
+
+  function stopNotifListener() {
+    if (notifUnsub) { notifUnsub(); notifUnsub = null; }
+  }
+
+  function renderNotifications(list) {
+    const container = document.getElementById('inboxList');
+    const emptyState = document.getElementById('inboxEmpty');
+    if (!container) return;
+
+    if (list.length === 0) {
+      container.innerHTML = '';
+      emptyState.style.display = 'flex';
+      return;
+    }
+    emptyState.style.display = 'none';
+
+    container.innerHTML = list.map(n => {
+      let text = '';
+      if (n.type === 'follow') {
+        text = `<b>${n.fromName}</b> started following you`;
+      }
+      return `<div class="notif-row">${text}</div>`;
+    }).join('');
+  }
+
   onAuthStateChanged(auth, (user) => {
     if (user) {
       currentUser = user;
       renderProfile();
+      syncUserDoc();
       startFeedListener();
+      startFollowListeners();
+      startNotifListener();
 
       document.getElementById('authWrapper').style.display = 'none';
       document.getElementById('appWrapper').style.display = 'flex';
@@ -209,6 +372,8 @@
     } else {
       currentUser = null;
       stopFeedListener();
+      stopFollowListeners();
+      stopNotifListener();
       document.getElementById('authWrapper').style.display = 'flex';
       document.getElementById('appWrapper').style.display = 'none';
       window.showWelcome();
@@ -230,7 +395,17 @@
     feedUnsubscribe = onSnapshot(q, (snapshot) => {
       currentFeed = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       renderFeed();
+      updateLikesStat();
     });
+  }
+
+  function updateLikesStat() {
+    if (!currentUser) return;
+    const total = currentFeed
+      .filter(v => v.authorUid === currentUser.uid)
+      .reduce((sum, v) => sum + (v.likes || 0), 0);
+    const el = document.getElementById('statLikes');
+    if (el) el.innerText = total;
   }
 
   function stopFeedListener() {
@@ -486,6 +661,42 @@
     background: #1a1a1a; color: #fff; border: 1px solid #333;
     border-radius: 20px; padding: 10px 16px; margin-bottom: 20px;
   }
+  .friend-row {
+    width: 100%; max-width: 380px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 0;
+  }
+  .friend-info { display: flex; align-items: center; gap: 12px; }
+  .friend-avatar {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: #fe2c55; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700; flex-shrink: 0;
+  }
+  .friend-name { font-size: 14px; font-weight: 600; }
+  .friend-username { font-size: 12px; color: #999; }
+  .btn-follow {
+    padding: 8px 20px;
+    border-radius: 18px;
+    border: none;
+    background: #fe2c55;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .btn-follow.following {
+    background: transparent;
+    border: 1px solid #444;
+    color: #fff;
+  }
+  .notif-row {
+    width: 100%; max-width: 380px;
+    padding: 14px 0;
+    border-bottom: 1px solid #1a1a1a;
+    font-size: 14px;
+    color: #eee;
+  }
+  .notif-row b { color: #fff; }
 
   /* Profile tab */
   #tabProfile { color: #fff; justify-content: flex-start; padding-top: 32px; }
@@ -639,11 +850,11 @@
 
   <!-- FRIENDS TAB -->
   <div id="tabFriends" class="tabContent" style="display:none;">
-    <input class="list-search" placeholder="Search for friends">
-    <div class="comingSoon">
-      <span class="big">👥</span>No friends yet<br>
-      <span style="font-size:12px;">(Friend search and add system coming in a later update)</span>
+    <input class="list-search" id="friendSearchInput" placeholder="Search for friends" oninput="searchFriends(this.value)">
+    <div id="friendsEmpty" class="comingSoon">
+      <span class="big">👥</span>Search for people by username
     </div>
+    <div id="friendsResults" style="width:100%; display:flex; flex-direction:column; gap:14px;"></div>
   </div>
 
   <!-- UPLOAD TAB -->
@@ -658,10 +869,10 @@
 
   <!-- INBOX TAB -->
   <div id="tabInbox" class="tabContent" style="display:none;">
-    <div class="comingSoon">
-      <span class="big">💬</span>No messages<br>
-      <span style="font-size:12px;">(Chat system coming in a later update)</span>
+    <div id="inboxEmpty" class="comingSoon">
+      <span class="big">💬</span>No notifications yet
     </div>
+    <div id="inboxList" style="width:100%; display:flex; flex-direction:column;"></div>
   </div>
 
   <!-- PROFILE TAB -->
@@ -672,9 +883,9 @@
     <div id="profileBio" class="profile-bio"></div>
 
     <div class="profile-stats">
-      <div class="stat-item"><div class="stat-num">0</div><div class="stat-label">Following</div></div>
-      <div class="stat-item"><div class="stat-num">0</div><div class="stat-label">Followers</div></div>
-      <div class="stat-item"><div class="stat-num">0</div><div class="stat-label">Likes</div></div>
+      <div class="stat-item"><div class="stat-num" id="statFollowing">0</div><div class="stat-label">Following</div></div>
+      <div class="stat-item"><div class="stat-num" id="statFollowers">0</div><div class="stat-label">Followers</div></div>
+      <div class="stat-item"><div class="stat-num" id="statLikes">0</div><div class="stat-label">Likes</div></div>
     </div>
 
     <button class="btn-outline" style="max-width:260px;" onclick="openEditProfile()">Edit profile</button>
