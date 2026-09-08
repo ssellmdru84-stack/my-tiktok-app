@@ -117,16 +117,90 @@
     el.style.color = ok ? '#25d366' : '#fe2c55';
   }
 
+  let currentUser = null;
+
+  function parseDisplayName(dn) {
+    // stored format: "Name | @username | Nickname"
+    if (!dn) return { name: '', username: '', nickname: '' };
+    const parts = dn.split('|').map(s => s.trim());
+    return {
+      name: parts[0] || '',
+      username: (parts[1] || '').replace('@', ''),
+      nickname: parts[2] || ''
+    };
+  }
+
+  function buildDisplayName(name, username, nickname) {
+    return `${name} | @${username} | ${nickname}`;
+  }
+
+  function getBioKey(uid) { return 'profile_bio_' + uid; }
+
+  function renderProfile() {
+    if (!currentUser) return;
+    const info = parseDisplayName(currentUser.displayName);
+    const name = info.name || currentUser.email;
+    const username = info.username;
+    const bio = localStorage.getItem(getBioKey(currentUser.uid)) || '';
+
+    document.getElementById('avatarCircle').innerText = (name[0] || '?').toUpperCase();
+    document.getElementById('profileName').innerText = name;
+    document.getElementById('profileUsername').innerText = username ? '@' + username : '';
+    const bioEl = document.getElementById('profileBio');
+    bioEl.innerText = bio;
+    bioEl.style.display = bio ? 'block' : 'none';
+  }
+
+  window.openEditProfile = function() {
+    if (!currentUser) return;
+    const info = parseDisplayName(currentUser.displayName);
+    document.getElementById('editName').value = info.name;
+    document.getElementById('editUsername').value = info.username;
+    document.getElementById('editNickname').value = info.nickname;
+    document.getElementById('editBio').value = localStorage.getItem(getBioKey(currentUser.uid)) || '';
+    document.getElementById('editProfileMsg').innerText = '';
+    document.getElementById('editProfileOverlay').style.display = 'flex';
+  };
+
+  window.closeEditProfile = function() {
+    document.getElementById('editProfileOverlay').style.display = 'none';
+  };
+
+  window.saveProfile = function() {
+    const name = document.getElementById('editName').value.trim();
+    const username = document.getElementById('editUsername').value.trim().replace('@', '');
+    const nickname = document.getElementById('editNickname').value.trim();
+    const bio = document.getElementById('editBio').value.trim();
+    const msgEl = document.getElementById('editProfileMsg');
+
+    if (!name || !username) {
+      msgEl.innerText = "Name and username are required";
+      msgEl.style.color = '#fe2c55';
+      return;
+    }
+
+    updateProfile(currentUser, { displayName: buildDisplayName(name, username, nickname) })
+      .then(() => {
+        localStorage.setItem(getBioKey(currentUser.uid), bio);
+        renderProfile();
+        closeEditProfile();
+      })
+      .catch((error) => {
+        msgEl.innerText = "Error: " + error.message;
+        msgEl.style.color = '#fe2c55';
+      });
+  };
+
   onAuthStateChanged(auth, (user) => {
     if (user) {
-      const label = user.displayName || user.email;
-      document.getElementById('profileName').innerText = label;
-      document.getElementById('profileEmail').innerText = user.email;
+      currentUser = user;
+      renderProfile();
 
       document.getElementById('authWrapper').style.display = 'none';
       document.getElementById('appWrapper').style.display = 'flex';
       window.showTab('Home');
     } else {
+      currentUser = null;
       document.getElementById('authWrapper').style.display = 'flex';
       document.getElementById('appWrapper').style.display = 'none';
       window.showWelcome();
@@ -379,7 +453,7 @@
   }
 
   /* Profile tab */
-  #tabProfile { color: #fff; justify-content: center; }
+  #tabProfile { color: #fff; justify-content: flex-start; padding-top: 32px; }
   .avatar-circle {
     width: 84px; height: 84px; border-radius: 50%;
     background: #fe2c55; color: #fff;
@@ -387,13 +461,55 @@
     font-size: 32px; font-weight: 700;
     margin-bottom: 16px;
   }
-  #profileName { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
-  #profileEmail { font-size: 13px; color: #999; margin-bottom: 24px; }
+  .profile-name { font-size: 19px; font-weight: 700; margin-top: 4px; }
+  .profile-username { font-size: 14px; color: #999; margin-top: 2px; }
+  .profile-bio { font-size: 13px; color: #ddd; margin-top: 10px; max-width: 300px; text-align: center; display: none; }
+  .profile-stats { display: flex; gap: 28px; margin: 20px 0 24px; }
+  .stat-item { text-align: center; }
+  .stat-num { font-size: 17px; font-weight: 700; }
+  .stat-label { font-size: 12px; color: #999; margin-top: 2px; }
   .btn-logout {
     background: #fe2c55; color: #fff; border: none;
     border-radius: 26px; padding: 12px 32px;
     font-size: 15px; font-weight: 600;
   }
+
+  /* Edit profile overlay */
+  #editProfileOverlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: #000;
+    color: #fff;
+    z-index: 100;
+    flex-direction: column;
+  }
+  #editProfileOverlay .inner {
+    max-width: 420px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 0 24px 24px;
+    overflow-y: auto;
+    flex: 1;
+  }
+  #editProfileOverlay .topbar { padding: 24px 0 0; }
+  #editProfileOverlay .topbar span { color: #fff; }
+  #editProfileOverlay h1.title { color: #fff; }
+  #editProfileOverlay input,
+  #editProfileOverlay textarea {
+    width: 100%;
+    padding: 14px;
+    margin: 6px 0;
+    border-radius: 4px;
+    border: 1px solid #333;
+    font-size: 15px;
+    background: #1a1a1a;
+    color: #fff;
+    font-family: inherit;
+  }
+  #editProfileOverlay label { display: block; font-size: 12px; color: #999; margin-top: 14px; margin-bottom: 2px; }
+  #editProfileOverlay textarea { resize: vertical; }
 
   /* Bottom nav bar */
   .navbar {
@@ -516,9 +632,18 @@
   <!-- PROFILE TAB -->
   <div id="tabProfile" class="tabContent" style="display:none;">
     <div class="avatar-circle" id="avatarCircle">👤</div>
-    <div id="profileName"></div>
-    <div id="profileEmail"></div>
-    <button class="btn-logout" onclick="logout()">Log out</button>
+    <div id="profileName" class="profile-name"></div>
+    <div id="profileUsername" class="profile-username"></div>
+    <div id="profileBio" class="profile-bio"></div>
+
+    <div class="profile-stats">
+      <div class="stat-item"><div class="stat-num">0</div><div class="stat-label">Following</div></div>
+      <div class="stat-item"><div class="stat-num">0</div><div class="stat-label">Followers</div></div>
+      <div class="stat-item"><div class="stat-num">0</div><div class="stat-label">Likes</div></div>
+    </div>
+
+    <button class="btn-outline" style="max-width:260px;" onclick="openEditProfile()">Edit profile</button>
+    <button class="btn-logout" style="margin-top:12px;" onclick="logout()">Log out</button>
   </div>
 
   <!-- BOTTOM NAV BAR -->
@@ -540,6 +665,24 @@
     </button>
   </div>
 
+</div>
+
+<!-- ================= EDIT PROFILE OVERLAY ================= -->
+<div id="editProfileOverlay">
+  <div class="inner">
+    <div class="topbar"><span onclick="closeEditProfile()">&times;</span></div>
+    <h1 class="title">Edit profile</h1>
+    <label>Full Name</label>
+    <input type="text" id="editName" placeholder="Full Name">
+    <label>Nickname</label>
+    <input type="text" id="editNickname" placeholder="Nickname">
+    <label>Username</label>
+    <input type="text" id="editUsername" placeholder="Username">
+    <label>Bio</label>
+    <textarea id="editBio" rows="3" placeholder="Tell people about yourself"></textarea>
+    <p id="editProfileMsg" class="msg"></p>
+    <button class="btn-primary" onclick="saveProfile()">Save</button>
+  </div>
 </div>
 
 </body>
